@@ -9,7 +9,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ENV_FILE=${ENV_FILE:-$HERE/mimo.env}
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE (copy mimo.env.example and edit it)"; exit 2; }
 # command-line environment wins over the file
-_saved=$(env | grep -E '^(HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
+_saved=$(env | grep -E '^(THINKING|HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
 set -a; . "$ENV_FILE"; set +a
 [ -n "$_saved" ] && eval "$(echo "$_saved" | sed 's/^\([A-Z_]*\)=\(.*\)$/\1="\2"/')"
 
@@ -38,7 +38,8 @@ ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
   --gpu-memory-utilization "$GMU" --max-model-len "$MAXLEN" --max-num-seqs "$SEQS"
   --kv-cache-dtype "$KV_DTYPE" --moe-backend "$MOE"
   --host 0.0.0.0 --port "$PORT"
-  --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice)
+  --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice
+  --default-chat-template-kwargs "{\"enable_thinking\": ${THINKING:-false}}")
 [ "$SPEC" = dflash ] && ARGS+=(--speculative-config '{"method":"dflash","model":"/models/mimo/dflash","num_speculative_tokens":7}')
 [ "$R" != 0 ] && ARGS+=(--headless)
 

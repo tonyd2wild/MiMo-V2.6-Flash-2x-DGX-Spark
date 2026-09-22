@@ -30,7 +30,7 @@ bash launch/serve.sh 0 # on the head Spark; serves http://<head>:8888/v1 after a
 
 The worker needs the model at the same path: its own copy, or the head's folder exported read-only over NFS (then `SKIP_DOWNLOAD=1 bash setup.sh` on the worker). Knobs in `mimo.env` or on the command line: `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `EXTRA_ARGS`. `DFLASH_VSCALE=1` mounts the drafter value-scale patch (measured: no gain, see below). The scripts we run on our own four-Spark fleet are in [examples/tech2wild-fleet](examples/tech2wild-fleet/).
 
-Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url`, video as `video_url`, audio as `input_audio` or `audio_url` (data URLs work for all). Thinking is on by default in the chat template; pass `"chat_template_kwargs": {"enable_thinking": false}` to turn it off.
+Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url`, video as `video_url`, audio as `input_audio` or `audio_url` (data URLs work for all). The launcher sets the server default to thinking off (`--default-chat-template-kwargs '{"enable_thinking": false}'`, `THINKING=true` to change it); a request can still turn it on with `"chat_template_kwargs": {"enable_thinking": true}`. Without the server default, thinking is on in this chat template and reasoning text can leak into `content` for clients that do not expect it.
 
 ## FP8 KV (default config), pair B, 2026-09-22
 
