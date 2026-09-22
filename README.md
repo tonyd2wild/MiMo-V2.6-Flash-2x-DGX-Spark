@@ -131,7 +131,21 @@ Same weights, image and patches, `--tensor-parallel-size 4 --nnodes 4` (Reddie h
 - **KV pool: 46.69 GiB per rank = 15,045,038 tokens, 30 concurrent 500K requests.**
 - Text, image, audio and video verified on this instance.
 - Two things TP4 needs that TP2 does not: `--linear-backend triton` (the CUTLASS block-scaled fp8 kernel fails with `cutlass_gemm_caller ... Invalid status` on the per-rank `(4096, 3392)` QKV weight; Triton is fine), and GMU 0.85 (at 0.90 all four ranks refuse to start: vLLM's probe sees about 105 GB free on a Spark that reports 116 GB MemAvailable).
-- First numbers, single stream, temperature 0: coding 92.3 tok/s (TP2 70.5, GLM-5.3-Flash TP4 95.8), JSON 76.6 (TP2 57.5, GLM 80.8), narrative 23.9 (drafter-limited: 0.64 accepted per step), TTFT 0.18 s (GLM 0.22). Full C1 to C32 tables land in [results/tp4](results/tp4/) as the bench completes.
+- Full bench, same prompt set and method as the TP2 tables (temperature 0, unique prefixes). GLM figures are the GLM-5.3-Flash TP4 lane on the same four Sparks (Blackfrost DERISKED NVFP4, its best config). Data: [results/tp4](results/tp4/).
+
+| | MiMo TP2 (pair) | **MiMo TP4** | GLM-5.3-Flash TP4 |
+|---|---|---|---|
+| C1 aggregate tok/s, TTFT | 45.0, 0.35 s | **59.8, 0.23 s** | 66.0, 0.22 s |
+| C3 / C6 aggregate | 99 / 156 | 109 / **192** | 125 / 166 |
+| C8 / C12 / C16 | not run | **221 / 252** / 269 | 198 / 238 / 271 |
+| C24 / C32 | not run | **363 / 397** | 326 / 352 |
+| C1 code / JSON / math | 70 / 57 / 69 | 83 / 75 / **95** | 96 / 81 / 83 |
+| C1 structured / format / counting | 85 / 85 / 88 | **115** / 108 / 136 | 106 / n.a. / 138 |
+| C1 prose / narrative / summary | 26 / 22 / 26 | 35 / 30 / 32 | 51 / 41 / 58 |
+| Cold prefill 2K / 8K / 32K / 64K | 1,950 / 1,700 / 1,425 / 1,210 | **2,952 / 2,911 / 2,603 / 2,172** | about 2,000 flat to 61K |
+| KV pool | 1.87M @ 300K | **15.0M @ 500K** | 3.53M @ 500K |
+
+C1 is the quiet-lane rerun (a first pass, with a few seconds of smoke-test traffic beside it, read 61.3 aggregate and 92.3 on code; single-stream cells move about 10% between passes on this lane). Reading: TP4 MiMo beats the GLM lane on throughput from C6 up (+16% at C6, +13% at C32), on math (+15%), structure (+8%), prefill (+30% to +45%) and KV pool (4.3x), ties on counting and TTFT, trails by 4 to 13% on code and JSON at one stream, and trails clearly on prose, narrative and summary, where DFlash accepts about 1 token per step (GLM's DFlash2 drafter is better matched to its target). No config switches beyond the baseline were run yet; candidates are draft length 5 vs 7 for prose, `--max-num-batched-tokens 8192`, and GMU 0.88.
 
 Fleet scripts: `examples/tech2wild-fleet/mimo_node.sh T <rank>` and `mimo_tp4_up.sh`. Generic: `TP=4 LINEAR_BACKEND=triton GMU=0.85 bash launch/serve.sh <rank>` on each Spark, workers first.
 
