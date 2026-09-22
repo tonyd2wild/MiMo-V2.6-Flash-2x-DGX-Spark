@@ -1,0 +1,93 @@
+[fp8kv-300k-baseline] warmup
+  C1 coding        agg   65.70 tok/s  per-stream 71.7  ttft 0.255s  acc/draft 5.3
+  C1 json          agg   47.15 tok/s  per-stream 55.92  ttft 0.34s  acc/draft 3.8
+  C1 narrative     agg   23.26 tok/s  per-stream 24.36  ttft 0.301s  acc/draft 0.96
+  C1 prose         agg   25.17 tok/s  per-stream 26.59  ttft 0.29s  acc/draft 1.25
+  C1 math          agg   63.78 tok/s  per-stream 73.5  ttft 0.363s  acc/draft 5.22
+  C1 reasoning     agg   33.37 tok/s  per-stream 35.16  ttft 0.332s  acc/draft 2.11
+  C1 summary       agg   27.82 tok/s  per-stream 33.69  ttft 0.75s  acc/draft 2.26
+  C1 structured    agg   64.84 tok/s  per-stream 86.98  ttft 0.411s  acc/draft 6.85
+  C1 format        agg   70.20 tok/s  per-stream 91.08  ttft 0.389s  acc/draft 6.73
+  C1 ceiling_count agg   68.87 tok/s  per-stream 74.28  ttft 0.284s  acc/draft 6.82
+  C2 coding        agg   72.69 tok/s  per-stream 42.4  ttft 0.502s  acc/draft 5.29
+  C2 json          agg   67.94 tok/s  per-stream 40.04  ttft 0.461s  acc/draft 3.85
+  C2 narrative     agg   32.20 tok/s  per-stream 17.39  ttft 0.341s  acc/draft 0.91
+  C2 prose         agg   33.70 tok/s  per-stream 17.86  ttft 0.329s  acc/draft 1.21
+  C2 math          agg   89.87 tok/s  per-stream 50.82  ttft 0.354s  acc/draft 5.02
+  C2 reasoning     agg   54.39 tok/s  per-stream 28.46  ttft 0.361s  acc/draft 2.8
+  C2 summary       agg   40.54 tok/s  per-stream 22.15  ttft 0.532s  acc/draft 1.77
+  C2 structured    agg   83.47 tok/s  per-stream 51.96  ttft 0.415s  acc/draft 6.03
+  C2 format        agg   91.66 tok/s  per-stream 58.86  ttft 0.521s  acc/draft 6.0
+  C2 ceiling_count agg  136.78 tok/s  per-stream 74.84  ttft 0.335s  acc/draft 6.82
+  C3 coding        agg  110.29 tok/s  per-stream 42.03  ttft 0.346s  acc/draft 5.27
+  C3 json          agg   81.11 tok/s  per-stream 31.63  ttft 0.404s  acc/draft 3.65
+  C3 narrative     agg   36.76 tok/s  per-stream 12.96  ttft 0.309s  acc/draft 0.79
+  C3 prose         agg   40.76 tok/s  per-stream 14.61  ttft 0.364s  acc/draft 1.27
+  C3 math          agg  126.29 tok/s  per-stream 47.83  ttft 0.456s  acc/draft 4.9
+  C3 reasoning     agg   61.78 tok/s  per-stream 21.93  ttft 0.39s  acc/draft 2.46
+  C3 summary       agg   50.49 tok/s  per-stream 19.34  ttft 0.833s  acc/draft 1.79
+  C3 structured    agg  105.88 tok/s  per-stream 44.61  ttft 0.411s  acc/draft 5.93
+  C3 format        agg  145.87 tok/s  per-stream 63.05  ttft 0.515s  acc/draft 5.94
+  C3 ceiling_count agg  162.54 tok/s  per-stream 59.2  ttft 0.416s  acc/draft 6.82
+  C4 coding        agg  138.37 tok/s  per-stream 38.2  ttft 0.383s  acc/draft 5.28
+  C4 json          agg  109.82 tok/s  per-stream 31.37  ttft 0.449s  acc/draft 3.72
+  C4 narrative     agg   40.25 tok/s  per-stream 10.58  ttft 0.347s  acc/draft 0.81
+  C4 prose         agg   42.80 tok/s  per-stream 11.8  ttft 0.433s  acc/draft 1.12
+  C4 math          agg  175.57 tok/s  per-stream 50.58  ttft 0.493s  acc/draft 4.88
+  C4 reasoning     agg   91.81 tok/s  per-stream 24.83  ttft 0.393s  acc/draft 2.78
+  C4 summary       agg   57.41 tok/s  per-stream 17.06  ttft 0.682s  acc/draft 1.67
+  C4 structured    agg  140.15 tok/s  per-stream 43.27  ttft 0.576s  acc/draft 6.25
+  C4 format        agg  168.88 tok/s  per-stream 57.83  ttft 0.683s  acc/draft 6.47
+  C4 ceiling_count agg  211.39 tok/s  per-stream 56.49  ttft 0.329s  acc/draft 6.82
+  C5 coding        agg  183.36 tok/s  per-stream 40.28  ttft 0.402s  acc/draft 5.35
+  C5 json          agg  128.32 tok/s  per-stream 29.86  ttft 0.402s  acc/draft 3.64
+  C5 narrative     agg   48.93 tok/s  per-stream 10.42  ttft 0.345s  acc/draft 0.84
+  C5 prose         agg   48.56 tok/s  per-stream 10.29  ttft 0.418s  acc/draft 1.28
+  C5 math          agg  183.89 tok/s  per-stream 43.54  ttft 0.586s  acc/draft 5.01
+  C5 reasoning     agg   98.82 tok/s  per-stream 22.24  ttft 0.52s  acc/draft 2.7
+  C5 summary       agg   69.18 tok/s  per-stream 16.48  ttft 0.813s  acc/draft 1.68
+  C5 structured    agg  176.62 tok/s  per-stream 43.73  ttft 0.49s  acc/draft 5.93
+  C5 format        agg  208.39 tok/s  per-stream 56.18  ttft 0.601s  acc/draft 6.22
+  C5 ceiling_count agg  273.84 tok/s  per-stream 60.48  ttft 0.345s  acc/draft 6.84
+  C6 coding        agg  234.56 tok/s  per-stream 43.43  ttft 0.394s  acc/draft 5.3
+  C6 json          agg  153.77 tok/s  per-stream 30.9  ttft 0.447s  acc/draft 3.66
+  C6 narrative     agg   61.38 tok/s  per-stream 11.2  ttft 0.426s  acc/draft 0.8
+  C6 prose         agg   64.42 tok/s  per-stream 12.12  ttft 0.334s  acc/draft 1.25
+  C6 math          agg  181.78 tok/s  per-stream 34.91  ttft 0.558s  acc/draft 4.86
+  C6 reasoning     agg  110.10 tok/s  per-stream 21.16  ttft 0.41s  acc/draft 2.72
+  C6 summary       agg   67.36 tok/s  per-stream 13.74  ttft 1.153s  acc/draft 1.68
+  C6 structured    agg  206.97 tok/s  per-stream 46.11  ttft 0.503s  acc/draft 6.09
+  C6 format        agg  226.75 tok/s  per-stream 49.95  ttft 0.582s  acc/draft 6.31
+  C6 ceiling_count agg  288.44 tok/s  per-stream 52.46  ttft 0.327s  acc/draft 6.84
+  prefill   2000: {'target': 2000, 'prompt_tokens': 5115, 'ttft_s': 3.929, 'prefill_tok_s': 1301.8}
+  prefill   8000: {'target': 8000, 'prompt_tokens': 20264, 'ttft_s': 16.101, 'prefill_tok_s': 1258.6}
+  prefill  32000: {'target': 32000, 'prompt_tokens': 81292, 'ttft_s': 91.789, 'prefill_tok_s': 885.6}
+  prefill  64000: {'target': 64000, 'prompt_tokens': 162620, 'ttft_s': 263.053, 'prefill_tok_s': 618.2}
+Traceback (most recent call last):
+  File "/root/mimobench.py", line 177, in <module>
+    open(f"{args.out}/bench-{args.label}.md", "w").write("\n".join(md) + "\n")
+    ^^^^^^
+  File "/root/mimobench.py", line 146, in main
+    for tgt in pre:
+            ^^^^^^^
+  File "/root/mimobench.py", line 58, in stream_chat
+    t0 = time.time(); ttft = None; usage = None; chars = 0
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 400: Bad Request

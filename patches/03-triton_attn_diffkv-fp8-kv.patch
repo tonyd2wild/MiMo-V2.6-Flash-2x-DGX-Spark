@@ -1,0 +1,39 @@
+--- a/vllm/v1/attention/backends/triton_attn_diffkv.py
++++ b/vllm/v1/attention/backends/triton_attn_diffkv.py
+@@ -71,10 +71,14 @@
+     # V head dim — set per layer via ``set_head_size_v`` before instantiation.
+     head_size_v: int = 128
+ 
+-    # No FP8 / int8 KV cache for the DiffKV path yet; require fp16/bf16/fp32.
++    # fp8 (e4m3) KV: the reshape kernel quantizes on write; the attention kernel
++    # upcasts K/V to the query dtype on load. KV scales are not applied on read,
++    # so this is exact only for unit scales (the default; no calculated scales).
+     supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = [
+         "auto",
+         "bfloat16",
++        "fp8",
++        "fp8_e4m3",
+     ]
+ 
+     @classmethod
+@@ -153,11 +157,6 @@
+ 
+     def __init__(self, *args, **kwargs) -> None:
+         super().__init__(*args, **kwargs)
+-        if is_quantized_kv_cache(self.kv_cache_dtype):
+-            raise NotImplementedError(
+-                "TritonAttentionDiffKVBackend does not yet support quantized "
+-                f"KV cache (got kv_cache_dtype={self.kv_cache_dtype!r})."
+-            )
+         if self._is_per_token_head_quant:
+             raise NotImplementedError(
+                 "TritonAttentionDiffKVBackend does not support per-token-head "
+@@ -234,6 +233,8 @@
+ 
+         # Triton DiffKV kernels consume (B, N, H, D) cache views.
+         kv_cache = kv_cache.transpose(1, 2)
++        if is_quantized_kv_cache(self.kv_cache_dtype) and kv_cache.dtype != self.fp8_dtype:
++            kv_cache = kv_cache.view(self.fp8_dtype)
+         key_cache = kv_cache[..., :head_size_qk]
+         value_cache = kv_cache[..., head_size_qk : head_size_qk + head_size_v]
+ 

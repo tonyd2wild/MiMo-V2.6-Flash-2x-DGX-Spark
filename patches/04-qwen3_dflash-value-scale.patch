@@ -1,0 +1,51 @@
+--- a/vllm/model_executor/models/qwen3_dflash.py
++++ b/vllm/model_executor/models/qwen3_dflash.py
+@@ -173,6 +173,7 @@
+         rms_norm_eps: float = 1e-06,
+         attention_bias: bool = False,
+         add_swa_attention_sink_bias: bool = False,
++        v_scale: float | None = None,
+         sliding_window: int | None = None,
+         causal: bool = False,
+         cache_config: CacheConfig | None = None,
+@@ -197,6 +198,11 @@
+         self.q_size = self.num_heads * self.head_dim
+         self.kv_size = self.num_kv_heads * self.head_dim
+         self.scaling = self.head_dim**-0.5
++        # DFIX (upstream vllm#57784): MiMo DFlash drafters are trained with
++        # V scaled by dflash_config.attention_value_scale (0.612 for
++        # MiMo-V2.6-Flash). Applied to query-token V here and to context V in
++        # precompute_and_store_context_kv.
++        self.v_scale = v_scale
+ 
+         self.qkv_proj = QKVParallelLinear(
+             hidden_size,
+@@ -267,6 +273,8 @@
+ 
+         q, k = self.rotary_emb(positions, q, k)
+ 
++        if self.v_scale is not None:
++            v = v * self.v_scale
+         attn_output = self.attn(q, k, v)
+         output, _ = self.o_proj(attn_output)
+         return output
+@@ -308,6 +316,7 @@
+             rms_norm_eps=config.rms_norm_eps,
+             attention_bias=getattr(config, "attention_bias", False),
+             add_swa_attention_sink_bias=add_swa_attention_sink_bias,
++            v_scale=dflash_config.get("attention_value_scale"),
+             sliding_window=sliding_window,
+             causal=causal,
+             head_dim=getattr(config, "head_dim", None),
+@@ -610,6 +619,11 @@
+ 
+         if context_slot_mapping is None:
+             return
++
++        # DFIX (upstream vllm#57784): scale context V to match the query path.
++        v_scale = getattr(self.layers[0].self_attn, "v_scale", None)
++        if v_scale is not None:
++            all_v.mul_(v_scale)
+ 
+         # --- Per-layer cache insert ---
+         all_k_final = all_k_flat.view(L, num_ctx, nkv, hd)

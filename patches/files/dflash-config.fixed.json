@@ -1,0 +1,56 @@
+{
+  "architectures": [
+    "DFlashDraftModel"
+  ],
+  "model_type": "qwen3",
+  "auto_map": {
+    "AutoModel": "dflash.DFlashDraftModel"
+  },
+  "hidden_size": 4096,
+  "intermediate_size": 16384,
+  "num_hidden_layers": 5,
+  "num_attention_heads": 64,
+  "num_key_value_heads": 8,
+  "head_dim": 128,
+  "v_head_dim": 128,
+  "partial_rotary_factor": 0.5,
+  "block_size": 8,
+  "dflash_config": {
+    "target_layer_ids": [
+      0,
+      11,
+      23,
+      35,
+      47
+    ],
+    "mask_token_id": 151675,
+    "num_anchors": 4096,
+    "block_size": 8,
+    "loss_decay_gamma": 7.0,
+    "attention_value_scale": 0.612,
+    "attention_sink_bias": true
+  },
+  "layer_types": [
+    "sliding_attention",
+    "sliding_attention",
+    "sliding_attention",
+    "sliding_attention",
+    "sliding_attention"
+  ],
+  "sliding_window": 1024,
+  "use_sliding_window": true,
+  "is_causal": false,
+  "num_target_layers": 48,
+  "target_hidden_size": 4096,
+  "vocab_size": 152576,
+  "max_position_embeddings": 1048576,
+  "rope_theta": 10000.0,
+  "rms_norm_eps": 1e-06,
+  "torch_dtype": "bfloat16",
+  "hidden_act": "silu",
+  "attention_bias": false,
+  "attention_dropout": 0.0,
+  "add_swa_attention_sink_bias": true,
+  "tie_word_embeddings": false,
+  "use_cache": true
+}

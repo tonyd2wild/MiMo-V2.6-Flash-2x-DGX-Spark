@@ -1,0 +1,21 @@
+--- a/vllm/model_executor/models/mimo_v2_omni.py
++++ b/vllm/model_executor/models/mimo_v2_omni.py
+@@ -50,6 +50,7 @@
+ 
+ from .interfaces import (
+     MultiModalEmbeddings,
++    SupportsEagle3,
+     SupportsMultiModal,
+     SupportsPP,
+     SupportsQuant,
+@@ -1173,7 +1174,9 @@
+     info=MiMoV2OmniProcessingInfo,
+     dummy_inputs=MiMoV2OmniDummyInputsBuilder,
+ )
+-class MiMoV2OmniForCausalLM(nn.Module, SupportsMultiModal, SupportsPP, SupportsQuant):
++class MiMoV2OmniForCausalLM(
++    nn.Module, SupportsMultiModal, SupportsPP, SupportsQuant, SupportsEagle3
++):
+     # To ensure correct weight loading and mapping.
+     hf_to_vllm_mapper = WeightsMapper(
+         orig_to_new_prefix={
