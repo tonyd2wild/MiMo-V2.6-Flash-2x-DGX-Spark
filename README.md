@@ -124,6 +124,16 @@ Cold prefill (unique prefix, one request):
 
 Both coding agents we run (OMP and the DeepSeek Harness) send requests without sampling parameters. With vLLM's own defaults (near-greedy) this model would, in a long tool-using session, emit the same tool call hundreds of times inside one response until it hit `max_tokens` (we saw single turns with 148 and 446 identical `grep` calls, and 44-minute turns of repeated `bash` checks). The launcher now passes `--generation-config auto` (the checkpoint's `temperature 1.0`, `top_p 0.95`) plus `--override-generation-config '{"repetition_penalty": 1.05}'` (`REP_PENALTY` knob). After the change the same wait-on-a-background-job task ran as 7 steps with one tool call each. Benchmarks on this page were run at temperature 0 per request and are unaffected. Clients can still set their own sampling per request.
 
+## Agent use: tool-call storms and the two mitigations
+
+In real agent sessions (OMP, DeepSeek Harness) this model sometimes answers a step with dozens to hundreds of tool calls in one response, typically right after it has written a large file: it plans an imagined trajectory instead of waiting for results. We reproduced it from a captured request body (non-streaming replays: 659 and 709 calls, 32K tokens). Facts measured on that body: temperature 0.6 makes it worse (4 of 4) than 1.0 (2 of 4); repetition penalty does nothing; thinking on avoids it but at 24K tokens of reasoning per step; streaming vs non-streaming and async scheduling make no difference to it. It is the model's most likely continuation of such a context, not a serving bug.
+
+Two things we run:
+1. `--no-async-scheduling` (launcher default). Unrelated to the storms, but with async scheduling on we measured foreign-script characters injected into a hex colour under concurrency (vLLM issue #46669); off, 0 in 24 concurrent long generations.
+2. A tool-call cap in the proxy the agents talk through ([tools/toolcap-proxy.cjs](tools/toolcap-proxy.cjs), route option `toolCap`, default 6): once a streamed response opens a 7th tool call, the proxy aborts the generation upstream and ends the stream with `finish_reason: tool_calls`. The agent executes the first six and asks again with real results. A storm that used to run 15 minutes now costs about 30 seconds.
+
+vLLM also offers a per-request `repetition_detection` stop if your client can set it.
+
 ## Patches
 
 All four go in as read-only bind mounts over the image's files (`launch/mimo_node.sh` adds them when present in `/var/tmp/mimo-cache`). Diffs are in [patches/](patches/), full files in [patches/files/](patches/files/).

@@ -1,15 +1,17 @@
 #!/bin/bash
-# mimo_node.sh <A|B> <rank 0|1> : one node of a MiMo-V2.6-Flash-RL TP2 instance (vLLM, DFlash).
-#   A = head Reddie 192.168.192.2 + worker Spark4 ; B = head Bluey 192.168.192.1 + worker Asusi.
+# mimo_node.sh <A|B|T> <rank> : one node of a MiMo-V2.6-Flash-RL instance (vLLM, DFlash).
+#   A = TP2 head Reddie 192.168.192.2 + worker Spark4 ; B = TP2 head Bluey 192.168.192.1 + worker Asusi.
+#   T = TP4 across all four (head Reddie rank 0, Spark4 rank 1, Asusi rank 2, Bluey rank 3).
 # Image: Tony's GB10 vLLM image (MiMo-V2 + DFlash support, sm_120 kernels, CUDA 13). Knobs from the environment.
 set -e
-PAIR=${1:?A or B}; R=${2:?rank 0 or 1}
+PAIR=${1:?A, B or T}; R=${2:?rank}
 IMAGE=${IMAGE:-ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2}
 NAME=${NAME:-vllm_mimo}
 case $PAIR in
   A) HEAD=192.168.192.2; DPORT=${DPORT:-29650};;
   B) HEAD=192.168.192.1; DPORT=${DPORT:-29660};;
-  *) echo "pair must be A or B"; exit 2;;
+  T) HEAD=192.168.192.2; DPORT=${DPORT:-29670}; TP=4;;
+  *) echo "pair must be A, B or T"; exit 2;;
 esac
 MYIP=$(ip -4 -o addr show enp1s0f0np0 | awk '{print $4}' | cut -d/ -f1)
 if [ -d /var/tmp/models/MiMo-V2.6-Flash-RL ] && [ -f /var/tmp/models/MiMo-V2.6-Flash-RL/config.json ]; then
@@ -39,19 +41,25 @@ KV_DTYPE=${KV_DTYPE:-fp8}   # fp8 (default) or auto (= bf16)
 MOE=${MOE:-marlin}
 EXTRA_ARGS=${EXTRA_ARGS:-}
 ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
-  --tensor-parallel-size 2 --distributed-executor-backend mp
-  --nnodes 2 --node-rank "$R" --master-addr "$HEAD" --master-port "$DPORT"
+  --tensor-parallel-size "${TP:-2}" --distributed-executor-backend mp
+  --nnodes "${TP:-2}" --node-rank "$R" --master-addr "$HEAD" --master-port "$DPORT"
   --gpu-memory-utilization "$GMU" --max-model-len "$MAXLEN" --max-num-seqs "$SEQS"
   --host 0.0.0.0 --port 8888
   --kv-cache-dtype "$KV_DTYPE" --moe-backend "$MOE"
   --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice
   --default-chat-template-kwargs "{\"enable_thinking\": ${THINKING:-false}}"
   --generation-config auto --override-generation-config "{\"repetition_penalty\": ${REP_PENALTY:-1.05}}")
+# async scheduling + spec decode corrupts tokens under concurrency (vllm#46669); off unless ASYNC_SCHED=1
+[ "${ASYNC_SCHED:-0}" = 1 ] || ARGS+=(--no-async-scheduling)
 [ "$SPEC" = dflash ] && ARGS+=(--speculative-config '{"method":"dflash","model":"/models/mimo/dflash","num_speculative_tokens":7}')
 [ "$R" != 0 ] && ARGS+=(--headless)
 docker rm -f "$NAME" > /dev/null 2>&1 || true
 # at GMU 0.90 the startup probe needs the page cache from the previous load gone (Kai: drop_caches is not optional)
 sync; { echo 3 > /proc/sys/vm/drop_caches; } 2>/dev/null || sudo -n sh -c "echo 3 > /proc/sys/vm/drop_caches" 2>/dev/null || true
+# vLLM refuses to start unless free memory >= GMU x device memory; wait for the previous container's memory to return
+need=$(python3 -c "print(int(121.69*$GMU*1024*1.01))")
+for i in $(seq 1 24); do avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); [ "$avail" -ge "$need" ] && break; sleep 5; done
+echo "MemAvailable ${avail} MiB (need about ${need} for GMU $GMU)"
 # shellcheck disable=SC2086
 docker run -d --name "$NAME" --gpus all --network host --ipc host --shm-size 32g \
   --memory 112g --memory-swap 112g --ulimit memlock=-1:-1 --cap-add IPC_LOCK --device /dev/infiniband:/dev/infiniband \
