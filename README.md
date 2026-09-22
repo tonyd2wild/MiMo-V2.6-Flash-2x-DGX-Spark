@@ -151,6 +151,9 @@ C1 is the quiet-lane rerun (a first pass, with a few seconds of smoke-test traff
 |---|---|---|---|---|---|---|
 | baseline: DFlash 7, MNBT default | 59.8 | 191.6 | 83 / 95 / 115 / 136 | 35 / 30 | 2,952 / 2,603 | reference |
 | DFlash draft length 4 | 52.3 | 176.7 | 86 / 82 / 78 / 84 | 28 / 30 | 2,058 / 2,601 | worse everywhere the drafter was good, no gain on prose; rejected |
+| `--max-num-batched-tokens 8192` (GLM's setting) | 60.7 | 188.0 | 91 / 98 / 116 / 137 | 27 / 28 | 2,938 / 2,231 | C2-C3 +5 to 8%, C5-C6 -2 to 3%, prefill worse at 8K and 32K, KV pool 13.1M (-13%); rejected |
+
+**Serving config after the switches: the baseline** (DFlash 7, default batch tokens, GMU 0.85, max-num-seqs 32, 500K, fp8 KV, Triton fp8 linear, marlin MoE, async scheduling off, thinking off). Remaining untested candidates: GMU 0.88, and a better-matched drafter for prose (the value-scale patch measured no gain at TP2).
 
 Fleet scripts: `examples/tech2wild-fleet/mimo_node.sh T <rank>` and `mimo_tp4_up.sh`. Generic: `TP=4 LINEAR_BACKEND=triton GMU=0.85 bash launch/serve.sh <rank>` on each Spark, workers first.
 
