@@ -47,6 +47,8 @@ mkdir -p "$CACHE"
 [ -n "${DRY_RUN:-}" ] || docker rm -f "$NAME" > /dev/null 2>&1 || true
 # wait for the old container's memory to come back (vLLM refuses to start below GMU x device memory)
 if [ -z "${DRY_RUN:-}" ]; then
+  # drop the page cache left by the previous weight load: vLLM's startup probe does not count reclaimable cache
+  sync; { echo 3 > /proc/sys/vm/drop_caches; } 2>/dev/null || sudo -n sh -c "echo 3 > /proc/sys/vm/drop_caches" 2>/dev/null || echo "could not drop caches (need root); startup may refuse at GMU $GMU"
   need=$(python3 -c "print(int(121.69*$GMU*1024*1.01))"); for i in $(seq 1 30); do
     avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); [ "$avail" -ge "$need" ] && break; sleep 5; done
   echo "MemAvailable ${avail} MiB (need about ${need} for GMU $GMU)"

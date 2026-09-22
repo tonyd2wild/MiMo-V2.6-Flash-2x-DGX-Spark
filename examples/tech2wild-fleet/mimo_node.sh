@@ -49,6 +49,8 @@ ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
 [ "$SPEC" = dflash ] && ARGS+=(--speculative-config '{"method":"dflash","model":"/models/mimo/dflash","num_speculative_tokens":7}')
 [ "$R" != 0 ] && ARGS+=(--headless)
 docker rm -f "$NAME" > /dev/null 2>&1 || true
+# at GMU 0.90 the startup probe needs the page cache from the previous load gone (Kai: drop_caches is not optional)
+sync; { echo 3 > /proc/sys/vm/drop_caches; } 2>/dev/null || sudo -n sh -c "echo 3 > /proc/sys/vm/drop_caches" 2>/dev/null || true
 # shellcheck disable=SC2086
 docker run -d --name "$NAME" --gpus all --network host --ipc host --shm-size 32g \
   --memory 112g --memory-swap 112g --ulimit memlock=-1:-1 --cap-add IPC_LOCK --device /dev/infiniband:/dev/infiniband \
