@@ -45,7 +45,8 @@ ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
   --host 0.0.0.0 --port 8888
   --kv-cache-dtype "$KV_DTYPE" --moe-backend "$MOE"
   --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice
-  --default-chat-template-kwargs "{\"enable_thinking\": ${THINKING:-false}}")
+  --default-chat-template-kwargs "{\"enable_thinking\": ${THINKING:-false}}"
+  --generation-config auto --override-generation-config "{\"repetition_penalty\": ${REP_PENALTY:-1.05}}")
 [ "$SPEC" = dflash ] && ARGS+=(--speculative-config '{"method":"dflash","model":"/models/mimo/dflash","num_speculative_tokens":7}')
 [ "$R" != 0 ] && ARGS+=(--headless)
 docker rm -f "$NAME" > /dev/null 2>&1 || true

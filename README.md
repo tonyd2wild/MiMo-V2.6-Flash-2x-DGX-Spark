@@ -120,6 +120,10 @@ Cold prefill (unique prefix, one request):
 | 127,055 | 157.65 | 805.9 |
 | 248,227 | 458.85 | 541.0 |
 
+## Sampling defaults matter for agent use
+
+Both coding agents we run (OMP and the DeepSeek Harness) send requests without sampling parameters. With vLLM's own defaults (near-greedy) this model would, in a long tool-using session, emit the same tool call hundreds of times inside one response until it hit `max_tokens` (we saw single turns with 148 and 446 identical `grep` calls, and 44-minute turns of repeated `bash` checks). The launcher now passes `--generation-config auto` (the checkpoint's `temperature 1.0`, `top_p 0.95`) plus `--override-generation-config '{"repetition_penalty": 1.05}'` (`REP_PENALTY` knob). After the change the same wait-on-a-background-job task ran as 7 steps with one tool call each. Benchmarks on this page were run at temperature 0 per request and are unaffected. Clients can still set their own sampling per request.
+
 ## Patches
 
 All four go in as read-only bind mounts over the image's files (`launch/mimo_node.sh` adds them when present in `/var/tmp/mimo-cache`). Diffs are in [patches/](patches/), full files in [patches/files/](patches/files/).
