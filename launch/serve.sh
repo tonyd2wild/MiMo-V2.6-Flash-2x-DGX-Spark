@@ -45,6 +45,12 @@ ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
 
 mkdir -p "$CACHE"
 [ -n "${DRY_RUN:-}" ] || docker rm -f "$NAME" > /dev/null 2>&1 || true
+# wait for the old container's memory to come back (vLLM refuses to start below GMU x device memory)
+if [ -z "${DRY_RUN:-}" ]; then
+  need=$(python3 -c "print(int(121.69*$GMU*1024*1.01))"); for i in $(seq 1 30); do
+    avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); [ "$avail" -ge "$need" ] && break; sleep 5; done
+  echo "MemAvailable ${avail} MiB (need about ${need} for GMU $GMU)"
+fi
 # shellcheck disable=SC2086
 ${DRY_RUN:+echo} docker run -d --name "$NAME" --gpus all --network host --ipc host --shm-size 32g \
   --memory 112g --memory-swap 112g --ulimit memlock=-1:-1 --cap-add IPC_LOCK --device /dev/infiniband:/dev/infiniband \

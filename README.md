@@ -6,7 +6,7 @@ Xiaomi's [MiMo-V2.6-Flash-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Flash-
 - **Default config:** fp8 KV cache, `--gpu-memory-utilization 0.90`, `--max-model-len 300000`, marlin MXFP4 MoE, DeepGEMM off. **KV pool 1.87M tokens** (12.6 GiB), six full 300K requests at once.
 - **FP8 (default) numbers, measured:** 155.8 tok/s aggregate at six streams (code 205.7, tables 248.8, counting 296.4), 53.3 tok/s per stream at one (counting 88.0, tables 84.6, code 70.5, math 68.9, JSON 57.5, prose 25.9), TTFT 0.37 s, cold prefill 1,947 tok/s at 2K down to 656 tok/s at 250K.
 - **BF16 KV** (GMU 0.85): same speed within noise, 560K-token pool. Both full benches are below.
-- Verified end to end: text, images (16 per request), video (motion direction read correctly from a clip), audio (a spoken password transcribed via both `input_audio` and `audio_url`), needle at 100K tokens. The 250K needle is being rerun (see [Open items](#open-items)).
+- Verified end to end: text, images (16 per request), video (motion direction read correctly from a clip), audio (a spoken password transcribed via both `input_audio` and `audio_url`), needle in a haystack at 100K and 250K tokens (depths 0.1, 0.5, 0.9 at 250K; exact answer every time, about 6.3 min of prefill per 248K-token request).
 - Nothing on this page is a projection.
 
 The stock image did not serve this checkpoint correctly on GB10. It took four fixes, all shipped here as drop-in files mounted over the image's copies (see [Patches](#patches)).
@@ -28,7 +28,7 @@ bash launch/serve.sh 1 # on the worker Spark first
 bash launch/serve.sh 0 # on the head Spark; serves http://<head>:8888/v1 after about 11 minutes of loading
 ```
 
-The worker needs the model at the same path: its own copy, or the head's folder exported read-only over NFS (then `SKIP_DOWNLOAD=1 bash setup.sh` on the worker). Knobs in `mimo.env` or on the command line: `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `EXTRA_ARGS`. `DFLASH_VSCALE=1` mounts the drafter value-scale patch (measured: no gain, see below). The scripts we run on our own four-Spark fleet are in [examples/tech2wild-fleet](examples/tech2wild-fleet/).
+At GMU 0.90 a restart needs the previous container's memory released first: vLLM probes free memory at startup and refuses if it is below 0.90 of the device (109.5 GiB). `serve.sh` waits for that after removing the old container. The worker needs the model at the same path: its own copy, or the head's folder exported read-only over NFS (then `SKIP_DOWNLOAD=1 bash setup.sh` on the worker). Knobs in `mimo.env` or on the command line: `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `EXTRA_ARGS`. `DFLASH_VSCALE=1` mounts the drafter value-scale patch (measured: no gain, see below). The scripts we run on our own four-Spark fleet are in [examples/tech2wild-fleet](examples/tech2wild-fleet/).
 
 Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url`, video as `video_url`, audio as `input_audio` or `audio_url` (data URLs work for all). The launcher sets the server default to thinking off (`--default-chat-template-kwargs '{"enable_thinking": false}'`, `THINKING=true` to change it); a request can still turn it on with `"chat_template_kwargs": {"enable_thinking": true}`. Without the server default, thinking is on in this chat template and reasoning text can leak into `content` for clients that do not expect it.
 
@@ -145,6 +145,5 @@ vLLM's `GPU KV cache size: N tokens` for this hybrid model is `blocks / blocks-p
 
 ## Open items
 
-- **Needle at 250K:** passed at 100K (depths 0.1 and 0.5, exact answers); the 250K runs are being redone.
 - Router `e_score_correction_bias` is held in bf16; the checkpoint and reference use fp32 (quality, not correctness).
 - 1M context: not attempted. At 300K the fp8 pool holds six requests; a 1M request would need about 3.3x the per-request blocks.
