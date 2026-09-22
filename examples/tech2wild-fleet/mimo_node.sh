@@ -55,6 +55,7 @@ docker run -d --name "$NAME" --gpus all --network host --ipc host --shm-size 32g
   -e HF_HOME=/cache/huggingface -e HF_HUB_OFFLINE=1 -e VLLM_CACHE_ROOT=/cache/vllm-mimo -e TRITON_CACHE_DIR=/cache/triton \
   -e VLLM_ENGINE_READY_TIMEOUT_S=3600 -e TORCH_CUDA_ARCH_LIST=12.1a -e VLLM_HOST_IP="$MYIP" \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+  -e PYTHONPATH=/cache/pyextra \
   -e VLLM_USE_DEEP_GEMM=${VLLM_USE_DEEP_GEMM:-0} \
   -e NCCL_NET=IB -e NCCL_IB_DISABLE=0 -e NCCL_IB_HCA=rocep1s0f0 -e NCCL_IB_GID_INDEX=3 -e NCCL_IB_ROCE_VERSION_NUM=2 \
   -e NCCL_IB_ADDR_FAMILY=AF_INET -e NCCL_IB_ADDR_RANGE=192.168.192.0/24 -e NCCL_SOCKET_IFNAME=enp1s0f0np0 \
