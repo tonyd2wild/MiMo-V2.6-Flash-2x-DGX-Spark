@@ -4,12 +4,12 @@
 # Settings come from launch/mimo.env (copy mimo.env.example). Any variable can also be
 # overridden on the command line, e.g.  KV_DTYPE=auto bash launch/serve.sh 0
 set -e
-R=${1:?usage: serve.sh <rank 0|1>}
+R=${1:?usage: serve.sh <rank>}   # TP2: 0 head, 1 worker. TP4 (TP=4): 0 head, 1..3 workers
 HERE=$(cd "$(dirname "$0")" && pwd)
 ENV_FILE=${ENV_FILE:-$HERE/mimo.env}
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE (copy mimo.env.example and edit it)"; exit 2; }
 # command-line environment wins over the file
-_saved=$(env | grep -E '^(REP_PENALTY|THINKING|HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
+_saved=$(env | grep -E '^(TP|LINEAR_BACKEND|REP_PENALTY|THINKING|HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
 set -a; . "$ENV_FILE"; set +a
 [ -n "$_saved" ] && eval "$(echo "$_saved" | sed 's/^\([A-Z_]*\)=\(.*\)$/\1="\2"/')"
 
@@ -33,10 +33,11 @@ MOUNTS=()
 [ ${#MOUNTS[@]} -ge 8 ] || { echo "patched files missing in $CACHE: run setup.sh first"; exit 4; }
 
 ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
-  --tensor-parallel-size 2 --distributed-executor-backend mp
-  --nnodes 2 --node-rank "$R" --master-addr "$HEAD_IP" --master-port "$MASTER_PORT"
+  --tensor-parallel-size "${TP:-2}" --distributed-executor-backend mp
+  --nnodes "${TP:-2}" --node-rank "$R" --master-addr "$HEAD_IP" --master-port "$MASTER_PORT"
   --gpu-memory-utilization "$GMU" --max-model-len "$MAXLEN" --max-num-seqs "$SEQS"
   --kv-cache-dtype "$KV_DTYPE" --moe-backend "$MOE"
+  --linear-backend "${LINEAR_BACKEND:-auto}"
   --host 0.0.0.0 --port "$PORT"
   --reasoning-parser mimo --tool-call-parser mimo --enable-auto-tool-choice
   --default-chat-template-kwargs "{\"enable_thinking\": ${THINKING:-false}}"

@@ -124,12 +124,25 @@ Cold prefill (unique prefix, one request):
 
 Both coding agents we run (OMP and the DeepSeek Harness) send requests without sampling parameters. With vLLM's own defaults (near-greedy) this model would, in a long tool-using session, emit the same tool call hundreds of times inside one response until it hit `max_tokens` (we saw single turns with 148 and 446 identical `grep` calls, and 44-minute turns of repeated `bash` checks). The launcher now passes `--generation-config auto` (the checkpoint's `temperature 1.0`, `top_p 0.95`) plus `--override-generation-config '{"repetition_penalty": 1.05}'` (`REP_PENALTY` knob). After the change the same wait-on-a-background-job task ran as 7 steps with one tool call each. Benchmarks on this page were run at temperature 0 per request and are unaffected. Clients can still set their own sampling per request.
 
+## TP4: one instance across four Sparks (2026-09-22)
+
+Same weights, image and patches, `--tensor-parallel-size 4 --nnodes 4` (Reddie head, three workers). Config: fp8 KV, GMU 0.85, max-model-len 500000, max-num-seqs 32, DFlash 7, marlin MoE, `--linear-backend triton`, async scheduling off, thinking off. Boot to serving 15 minutes (weights load in 5.5 minutes at 42.5 GiB per rank).
+
+- **KV pool: 46.69 GiB per rank = 15,045,038 tokens, 30 concurrent 500K requests.**
+- Text, image, audio and video verified on this instance.
+- Two things TP4 needs that TP2 does not: `--linear-backend triton` (the CUTLASS block-scaled fp8 kernel fails with `cutlass_gemm_caller ... Invalid status` on the per-rank `(4096, 3392)` QKV weight; Triton is fine), and GMU 0.85 (at 0.90 all four ranks refuse to start: vLLM's probe sees about 105 GB free on a Spark that reports 116 GB MemAvailable).
+- First numbers, single stream, temperature 0: coding 92.3 tok/s (TP2 70.5, GLM-5.3-Flash TP4 95.8), JSON 76.6 (TP2 57.5, GLM 80.8), narrative 23.9 (drafter-limited: 0.64 accepted per step), TTFT 0.18 s (GLM 0.22). Full C1 to C32 tables land in [results/tp4](results/tp4/) as the bench completes.
+
+Fleet scripts: `examples/tech2wild-fleet/mimo_node.sh T <rank>` and `mimo_tp4_up.sh`. Generic: `TP=4 LINEAR_BACKEND=triton GMU=0.85 bash launch/serve.sh <rank>` on each Spark, workers first.
+
 ## Agent use: tool-call storms and the two mitigations
 
 In real agent sessions (OMP, DeepSeek Harness) this model sometimes answers a step with dozens to hundreds of tool calls in one response, typically right after it has written a large file: it plans an imagined trajectory instead of waiting for results. We reproduced it from a captured request body (non-streaming replays: 659 and 709 calls, 32K tokens). Facts measured on that body: temperature 0.6 makes it worse (4 of 4) than 1.0 (2 of 4); repetition penalty does nothing; thinking on avoids it but at 24K tokens of reasoning per step; streaming vs non-streaming and async scheduling make no difference to it. It is the model's most likely continuation of such a context, not a serving bug.
 
 Two things we run:
 1. `--no-async-scheduling` (launcher default). Unrelated to the storms, but with async scheduling on we measured foreign-script characters injected into a hex colour under concurrency (vLLM issue #46669); off, 0 in 24 concurrent long generations.
+With the cap, the DeepSeek Harness completed the Appleseed task (an 80 KB Three.js voxel scene) in about 30 minutes; OMP, whose system prompt pushes harder on parallel calls, still storms on almost every step and only crawls forward under the cap. Open item.
+
 2. A tool-call cap in the proxy the agents talk through ([tools/toolcap-proxy.cjs](tools/toolcap-proxy.cjs), route option `toolCap`, default 6): once a streamed response opens a 7th tool call, the proxy aborts the generation upstream and ends the stream with `finish_reason: tool_calls`. The agent executes the first six and asks again with real results. A storm that used to run 15 minutes now costs about 30 seconds.
 
 vLLM also offers a per-request `repetition_detection` stop if your client can set it.
