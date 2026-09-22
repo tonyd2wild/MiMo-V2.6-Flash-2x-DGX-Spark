@@ -1,12 +1,12 @@
-# MiMo-V2.6-Flash-RL on 2x NVIDIA DGX Spark (vLLM, TP2, DFlash, vision + audio)
+# MiMo-V2.6-Flash-RL on 2x NVIDIA DGX Spark (vLLM, TP2, DFlash, image + video + audio)
 
 Xiaomi's [MiMo-V2.6-Flash-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Flash-RL) (about 310B total, about 12B active, fp8 attention with MXFP4 experts, 1M native context) served on two DGX Sparks (GB10, sm_121) per instance with vLLM tensor parallel 2 and the bundled DFlash drafter. We run two identical pairs side by side on four Sparks.
 
-**Status (2026-09-22):** serving on both pairs with text, image and video input, DFlash speculative decoding (7 draft tokens), 300K max context.
+**Status (2026-09-22):** serving on both pairs with text, image, video and audio input, DFlash speculative decoding (7 draft tokens), 300K max context.
 - **Default config:** fp8 KV cache, `--gpu-memory-utilization 0.90`, `--max-model-len 300000`, marlin MXFP4 MoE, DeepGEMM off. **KV pool 1.87M tokens** (12.6 GiB), six full 300K requests at once.
 - **FP8 (default) numbers, measured:** 155.8 tok/s aggregate at six streams (code 205.7, tables 248.8, counting 296.4), 53.3 tok/s per stream at one (counting 88.0, tables 84.6, code 70.5, math 68.9, JSON 57.5, prose 25.9), TTFT 0.37 s, cold prefill 1,947 tok/s at 2K down to 656 tok/s at 250K.
 - **BF16 KV** (GMU 0.85): same speed within noise, 560K-token pool. Both full benches are below.
-- Verified: text, images (16 per request), video, needle at 100K tokens. Audio input and the 250K needle are in progress (see [Open items](#open-items)).
+- Verified end to end: text, images (16 per request), video (motion direction read correctly from a clip), audio (a spoken password transcribed via both `input_audio` and `audio_url`), needle at 100K tokens. The 250K needle is being rerun (see [Open items](#open-items)).
 - Nothing on this page is a projection.
 
 The stock image did not serve this checkpoint correctly on GB10. It took four fixes, all shipped here as drop-in files mounted over the image's copies (see [Patches](#patches)).
@@ -30,11 +30,11 @@ bash launch/serve.sh 0 # on the head Spark; serves http://<head>:8888/v1 after a
 
 The worker needs the model at the same path: its own copy, or the head's folder exported read-only over NFS (then `SKIP_DOWNLOAD=1 bash setup.sh` on the worker). Knobs in `mimo.env` or on the command line: `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `EXTRA_ARGS`. `DFLASH_VSCALE=1` mounts the drafter value-scale patch (measured: no gain, see below). The scripts we run on our own four-Spark fleet are in [examples/tech2wild-fleet](examples/tech2wild-fleet/).
 
-Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url` (data URLs work). Thinking is on by default in the chat template; pass `"chat_template_kwargs": {"enable_thinking": false}` to turn it off.
+Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url`, video as `video_url`, audio as `input_audio` or `audio_url` (data URLs work for all). Thinking is on by default in the chat template; pass `"chat_template_kwargs": {"enable_thinking": false}` to turn it off.
 
 ## FP8 KV (default config), pair B, 2026-09-22
 
-fp8 KV, max-model-len 300000, GMU 0.90, max-num-seqs 8, DFlash 7, marlin, DeepGEMM off. KV pool 13.89 GiB = 1,835,052 tokens (6.12x at 300K); pair A with the same config reports 1,867,302. This run had the drafter value-scale patch mounted; it changed nothing measurable (acceptance per category identical to the BF16 run within noise), so the numbers stand for the default config. Full data: [results/fp8-kv-300k-gmu90](results/fp8-kv-300k-gmu90/).
+fp8 KV, max-model-len 300000, GMU 0.90, max-num-seqs 8, DFlash 7, marlin, DeepGEMM off. KV pool 13.89 GiB = 1,835,052 tokens (6.12x at 300K); pair A with the same config reports 1,867,302. This run had the drafter value-scale patch mounted. The same bench on pair A with the stock drafter landed within noise (C1 45.04 / C6 158.46 aggregate, prefill 1,944 at 2K and 925 at 128K), so the patch changes nothing and these numbers stand for the default config. Both runs: [results/fp8-kv-300k-gmu90](results/fp8-kv-300k-gmu90/).
 
 | C | aggregate tok/s | per-stream tok/s | mean TTFT (s) |
 |---|---|---|---|
@@ -145,7 +145,6 @@ vLLM's `GPU KV cache size: N tokens` for this hybrid model is `blocks / blocks-p
 
 ## Open items
 
-- **Audio input:** the encoder loads, but the first request failed on the missing libraries above. The fix is staged (`pyextra` mount) and being tested now; this line changes when it passes.
 - **Needle at 250K:** passed at 100K (depths 0.1 and 0.5, exact answers); the 250K runs are being redone.
 - Router `e_score_correction_bias` is held in bf16; the checkpoint and reference use fp32 (quality, not correctness).
 - 1M context: not attempted. At 300K the fp8 pool holds six requests; a 1M request would need about 3.3x the per-request blocks.
