@@ -75,6 +75,10 @@ Cold prefill (unique prefix, one request):
 | 127,055 | 135.62 | 936.8 |
 | 248,227 | 378.15 | 656.4 |
 
+## Thinking off at the server (both pairs, 2026-09-22)
+
+The shipped default adds `--default-chat-template-kwargs '{"enable_thinking": false}'`. Rebenched both pairs with it (same fp8 config): pair A C1 44.52 / C6 152.65 aggregate tok/s, TTFT 0.398 s; pair B C1 43.93 / C6 159.00, TTFT 0.334 s; cold prefill 1,950 to 1,998 tok/s at 2K and 902 to 935 at 128K. Within noise of the runs above, so the default costs nothing. A plain request with no `chat_template_kwargs` now returns the answer in `content` with empty reasoning on both pairs. Data: [results/fp8-thinking-off](results/fp8-thinking-off/).
+
 ## BF16 KV baseline (pair B, 2026-09-22)
 
 bf16 KV, max-model-len 300000, GMU 0.85, max-num-seqs 8, DFlash 7, marlin, DeepGEMM off. KV pool 7.71 GiB = 560,063 tokens (1.87x at 300K). Prompt set v1, temperature 0, thinking off, unique prefix per request (no prefix-cache hits). Full data: [results/bf16-kv-300k](results/bf16-kv-300k/).
