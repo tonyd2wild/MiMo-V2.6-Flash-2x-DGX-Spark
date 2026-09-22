@@ -2,10 +2,11 @@
 
 Xiaomi's [MiMo-V2.6-Flash-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Flash-RL) (about 310B total, about 12B active, fp8 attention with MXFP4 experts, 1M native context) served on two DGX Sparks (GB10, sm_121) per instance with vLLM tensor parallel 2 and the bundled DFlash drafter. We run two identical pairs side by side on four Sparks.
 
-**Status (2026-09-22):** serving on both pairs with text, image and audio input, DFlash speculative decoding (7 draft tokens), 300K max context.
-- **Default config:** fp8 KV cache, `--gpu-memory-utilization 0.90`, `--max-model-len 300000`, marlin MXFP4 MoE, DeepGEMM off.
-- **BF16 baseline (measured, below):** 158.9 tok/s aggregate at six streams, 54.7 tok/s per stream at one, cold prefill 1,967 tok/s at 2K down to 541 tok/s at 250K.
-- **FP8 baseline:** being measured, added here when done.
+**Status (2026-09-22):** serving on both pairs with text, image and video input, DFlash speculative decoding (7 draft tokens), 300K max context.
+- **Default config:** fp8 KV cache, `--gpu-memory-utilization 0.90`, `--max-model-len 300000`, marlin MXFP4 MoE, DeepGEMM off. **KV pool 1.87M tokens** (12.6 GiB), six full 300K requests at once.
+- **FP8 (default) numbers, measured:** 155.8 tok/s aggregate at six streams (code 205.7, tables 248.8, counting 296.4), 53.3 tok/s per stream at one (counting 88.0, tables 84.6, code 70.5, math 68.9, JSON 57.5, prose 25.9), TTFT 0.37 s, cold prefill 1,947 tok/s at 2K down to 656 tok/s at 250K.
+- **BF16 KV** (GMU 0.85): same speed within noise, 560K-token pool. Both full benches are below.
+- Verified: text, images (16 per request), video, needle at 100K tokens. Audio input and the 250K needle are in progress (see [Open items](#open-items)).
 - Nothing on this page is a projection.
 
 The stock image did not serve this checkpoint correctly on GB10. It took four fixes, all shipped here as drop-in files mounted over the image's copies (see [Patches](#patches)).
@@ -17,20 +18,62 @@ The stock image did not serve this checkpoint correctly on GB10. It took four fi
 - Image: `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` (vLLM 0.1.dev20051+g487ecf187, torch 2.13, CUDA 13, sm_120 kernels).
 - Weights: 166 GiB, 65 shards, local on each head; the worker of each pair reads the head's copy over read-only NFS.
 
-## Quick start
+## Quick start (two DGX Sparks linked over the QSFP port)
 
 ```bash
-# on each node: fix the drafter config once (writes /var/tmp/mimo-cache/dflash-config.fixed.json)
-bash launch/fix_dflash_cfg.sh
-# copy patches/files/*.py to /var/tmp/mimo-cache/ on every node, then per pair, worker first:
-bash launch/mimo_node.sh A 1     # on Spark4
-bash launch/mimo_node.sh A 0     # on Reddie (head, serves :8888)
-# or start both pairs from Reddie: bash launch/mimo_up.sh <label>
+git clone https://github.com/tonyd2wild/MiMo-V2.6-Flash-2x-DGX-Spark && cd MiMo-V2.6-Flash-2x-DGX-Spark
+cp launch/mimo.env.example launch/mimo.env   # set HEAD_IP, MODEL_DIR, IFACE/HCA/ADDR_RANGE
+bash setup.sh          # on BOTH Sparks: pulls the image, downloads the 178 GB model, stages the patches and audio libs
+bash launch/serve.sh 1 # on the worker Spark first
+bash launch/serve.sh 0 # on the head Spark; serves http://<head>:8888/v1 after about 11 minutes of loading
 ```
 
-Knobs (environment): `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `DFLASH_VSCALE` (0; 1 mounts the drafter value-scale fix, under test), `EXTRA_ARGS`.
+The worker needs the model at the same path: its own copy, or the head's folder exported read-only over NFS (then `SKIP_DOWNLOAD=1 bash setup.sh` on the worker). Knobs in `mimo.env` or on the command line: `KV_DTYPE` (`fp8` default, `auto` = bf16), `GMU` (0.90), `MAXLEN` (300000), `SEQS` (8), `SPEC` (`dflash`), `MOE` (`marlin`), `EXTRA_ARGS`. `DFLASH_VSCALE=1` mounts the drafter value-scale patch (measured: no gain, see below). The scripts we run on our own four-Spark fleet are in [examples/tech2wild-fleet](examples/tech2wild-fleet/).
 
 Endpoint: OpenAI-compatible at `http://<head>:8888/v1`, model `mimo-v2.6-flash`. Images go in as `image_url` (data URLs work). Thinking is on by default in the chat template; pass `"chat_template_kwargs": {"enable_thinking": false}` to turn it off.
+
+## FP8 KV (default config), pair B, 2026-09-22
+
+fp8 KV, max-model-len 300000, GMU 0.90, max-num-seqs 8, DFlash 7, marlin, DeepGEMM off. KV pool 13.89 GiB = 1,835,052 tokens (6.12x at 300K); pair A with the same config reports 1,867,302. This run had the drafter value-scale patch mounted; it changed nothing measurable (acceptance per category identical to the BF16 run within noise), so the numbers stand for the default config. Full data: [results/fp8-kv-300k-gmu90](results/fp8-kv-300k-gmu90/).
+
+| C | aggregate tok/s | per-stream tok/s | mean TTFT (s) |
+|---|---|---|---|
+| C1 | 45.58 | 53.31 | 0.367 |
+| C2 | 71.03 | 41.61 | 0.425 |
+| C3 | 99.69 | 39.04 | 0.405 |
+| C4 | 120.37 | 35.35 | 0.419 |
+| C5 | 136.47 | 32.68 | 0.463 |
+| C6 | 155.77 | 31.16 | 0.498 |
+
+Per-stream tok/s by category:
+
+| category | C1 | C2 | C3 | C4 | C5 | C6 |
+|---|---|---|---|---|---|---|
+| coding | 70.46 | 54.53 | 48.74 | 45.18 | 41.37 | 40.22 |
+| json | 57.45 | 45.53 | 43.10 | 37.12 | 34.94 | 34.06 |
+| narrative | 21.91 | 16.67 | 14.79 | 12.30 | 12.44 | 10.80 |
+| prose | 25.86 | 19.52 | 16.51 | 15.42 | 14.78 | 14.38 |
+| math | 68.92 | 55.54 | 51.69 | 47.79 | 45.67 | 39.28 |
+| reasoning | 40.27 | 30.74 | 25.85 | 24.06 | 23.06 | 22.29 |
+| summary | 25.57 | 20.60 | 20.48 | 18.58 | 15.64 | 14.85 |
+| structured | 84.63 | 61.17 | 60.77 | 52.81 | 49.07 | 51.42 |
+| format | 84.68 | 70.15 | 69.45 | 64.88 | 57.19 | 53.14 |
+| counting (ceiling) | 87.95 | 76.45 | 68.05 | 63.19 | 57.65 | 53.84 |
+
+Aggregate tok/s at C6 by category: counting 296.4, format 248.8, structured 241.6, coding 205.7, math 205.1, json 170.0, reasoning 123.0, prose 75.6, summary 72.1, narrative 60.0.
+
+DFlash accepted tokens per draft step (of 7) at C1: structured 6.85, counting 6.82, format 6.19, coding 5.23, math 5.00, json 4.00, reasoning 2.62, summary 1.34, prose 1.23, narrative 0.83.
+
+Cold prefill (unique prefix, one request):
+
+| prompt tokens | TTFT (s) | prefill tok/s |
+|---|---|---|
+| 2,004 | 1.03 | 1,946.6 |
+| 7,919 | 4.66 | 1,697.9 |
+| 31,836 | 22.35 | 1,424.6 |
+| 63,764 | 52.75 | 1,208.8 |
+| 127,055 | 135.62 | 936.8 |
+| 248,227 | 378.15 | 656.4 |
 
 ## BF16 KV baseline (pair B, 2026-09-22)
 
@@ -60,7 +103,7 @@ Per-stream tok/s by category:
 | format | 90.73 | 76.59 | 60.38 | 74.66 | 65.20 | 58.43 |
 | counting (ceiling) | 90.04 | 79.12 | 71.66 | 67.50 | 60.13 | 61.37 |
 
-DFlash accepted tokens per draft step (of 7) at C1: structured 6.29, format 6.73, counting 6.82, coding 5.43, math 5.26, json 3.80, reasoning 3.04, summary 1.97, prose 1.24, narrative 0.70. Prose-type text is where decode is slow, and the drafter value-scale fix (patch 04) targets it.
+DFlash accepted tokens per draft step (of 7) at C1: structured 6.29, format 6.73, counting 6.82, coding 5.43, math 5.26, json 3.80, reasoning 3.04, summary 1.97, prose 1.24, narrative 0.70. Prose-type text is where decode is slow; the drafter value-scale patch (04) was tried for it and did not move these numbers.
 
 Cold prefill (unique prefix, one request):
 
@@ -73,10 +116,6 @@ Cold prefill (unique prefix, one request):
 | 127,055 | 157.65 | 805.9 |
 | 248,227 | 458.85 | 541.0 |
 
-## FP8 KV baseline
-
-Pending. Same bench, pair A, fp8 KV, GMU 0.90.
-
 ## Patches
 
 All four go in as read-only bind mounts over the image's files (`launch/mimo_node.sh` adds them when present in `/var/tmp/mimo-cache`). Diffs are in [patches/](patches/), full files in [patches/files/](patches/files/).
@@ -84,10 +123,11 @@ All four go in as read-only bind mounts over the image's files (`launch/mimo_nod
 1. **Fused fp8 QKV loading** (`mimo_v2.py`, patch 01). The checkpoint stores each layer's fused `qkv_proj` pre-sharded for TP4: `num_key_value_heads` (4) chunks, each `[Q_c | K_c | V_c]` with its own 128x128 fp8 block scales (full-attention layers: 108 scale rows, sliding-window layers: 116). The image's loader assumes one chunk per KV head, which is right for the 9 full-attention layers and wrong for the 39 sliding-window layers (8 KV heads), so at TP2 it crashed, and a naive fix scrambled Q/K/V and produced word salad. The patched `_shard_fp8_qkv_proj` takes `ckpt_tp` chunks, gives each rank `ckpt_tp / tp` of them, dequantizes, regroups to `[Q | K | V]` and requantizes. Same approach as upstream [vllm#57508](https://github.com/vllm-project/vllm/pull/57508) and SGLang's MiMo-V2 loader. Verified against the real tensors (exact on SWA layers; 0.7 to 1.1% requantization error on full layers).
 2. **Vision class plus DFlash** (`mimo_v2_omni.py`, patch 02). vLLM resolves this checkpoint to `MiMoV2OmniForCausalLM` (vision and audio towers). That class lacked the `SupportsEagle3` marker DFlash needs for auxiliary hidden states. The marker is all it takes: the hooks already delegate to the inner language model.
 3. **fp8 KV cache that actually applies** (`mimo_v2.py` + `triton_attn_diffkv.py`, patches 01 and 03). The image's MiMo attention never passed `cache_config`, so `--kv-cache-dtype fp8` silently stayed bf16 on all 48 target layers (only the drafter went fp8). The DiffKV attention backend (192/128 K/V head dims) also rejected quantized KV. Patched: pass `cache_config` (with the sliding window cleared for full-attention layers, since `Attention` otherwise falls back to the model's 128-token window), allow fp8 in the backend and view the cache as fp8 on read. The kernel upcasts K/V to bf16 on load and does not apply KV scales, which is exact for this checkpoint (no calculated scales, unit scales).
-4. **DFlash drafter value scale** (`qwen3_dflash.py`, patch 04, opt-in with `DFLASH_VSCALE=1`, under test). The drafter was trained with V scaled by `dflash_config.attention_value_scale` (0.612); the image ignores it. Same change as upstream [vllm#57784](https://github.com/vllm-project/vllm/pull/57784).
+4. **DFlash drafter value scale** (`qwen3_dflash.py`, patch 04, opt-in with `DFLASH_VSCALE=1`). The drafter was trained with V scaled by `dflash_config.attention_value_scale` (0.612); the image ignores it. Same change as upstream [vllm#57784](https://github.com/vllm-project/vllm/pull/57784). Measured on the full bench: no change in acceptance or speed in any category, so it is off by default.
 
-Plus two configuration fixes:
-- `dflash/config.json` in the release has a trailing comma (invalid JSON). `launch/fix_dflash_cfg.sh` writes a corrected copy that is mounted over it.
+Plus three configuration fixes:
+- `dflash/config.json` in the release has a trailing comma (invalid JSON). `setup.sh` writes a corrected copy that is mounted over it.
+- The image lacks `soundfile` and PyAV, so audio requests fail with "install vllm[audio]". `setup.sh` installs both into `$CACHE/pyextra`, which the launcher puts on `PYTHONPATH`.
 - `VLLM_USE_DEEP_GEMM=0` and `--moe-backend marlin`. The image pins DeepGEMM `8b1392b`, which silently corrupts fp8 GEMMs on SM12x ([DeepGEMM#417](https://github.com/deepseek-ai/DeepGEMM/issues/417)); by default vLLM would also route the MXFP4 experts through DeepGEMM.
 
 ## How the KV "tokens" figure works here
@@ -99,11 +139,13 @@ vLLM's `GPU KV cache size: N tokens` for this hybrid model is `blocks / blocks-p
 - `tests/mimo_test.py <url>`: three prompts, prints TTFT, decode tok/s and the text.
 - `tests/mimo_vision.py <url>`: draws a known image locally (red square, blue circle, green triangle, "MIMO 42") and asks for a description.
 - `tests/mimo_needle.py <url> 100000,250000 0.1,0.5,0.9`: needle in a haystack at the given sizes and depths.
+- `tests/mimo_media.py <url> speech.wav motion.mp4`: audio (two request formats) and video smoke test.
 - `tests/mimo_ab.py`: greedy A/B of the two pairs with DFlash acceptance from `/metrics`.
 - `bench/mimobench.py`: the full bench (C1 to C6, 9 categories plus a counting ceiling, cold prefill), derived from our DeepSeek-V4.1-Flash bench.
 
 ## Open items
 
+- **Audio input:** the encoder loads, but the first request failed on the missing libraries above. The fix is staged (`pyextra` mount) and being tested now; this line changes when it passes.
+- **Needle at 250K:** passed at 100K (depths 0.1 and 0.5, exact answers); the 250K runs are being redone.
 - Router `e_score_correction_bias` is held in bf16; the checkpoint and reference use fp32 (quality, not correctness).
-- Audio input loads but has not been tested end to end.
-- 1M context: needs a larger pool than 300K at GMU 0.90 gives; not attempted yet.
+- 1M context: not attempted. At 300K the fp8 pool holds six requests; a 1M request would need about 3.3x the per-request blocks.

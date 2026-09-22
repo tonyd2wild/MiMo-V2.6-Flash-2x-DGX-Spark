@@ -64,3 +64,32 @@
   prefill  32000: {'target': 32000, 'prompt_tokens': 31836, 'ttft_s': 22.348, 'prefill_tok_s': 1424.6}
   prefill  64000: {'target': 64000, 'prompt_tokens': 63764, 'ttft_s': 52.752, 'prefill_tok_s': 1208.8}
   prefill 128000: {'target': 128000, 'prompt_tokens': 127055, 'ttft_s': 135.621, 'prefill_tok_s': 936.8}
+  prefill 250000: {'target': 250000, 'prompt_tokens': 248227, 'ttft_s': 378.145, 'prefill_tok_s': 656.4}
+Prompt set `v1` (identical across boots), temperature 0, thinking off. Tokens from the server's usage block; TTFT = first token delta.
+
+### Throughput by concurrency (9 categories; the counting ceiling is excluded)
+
+| C | aggregate tok/s | per-stream tok/s | mean TTFT (s) |
+|---|---|---|---|
+| C1 | 45.58 | 53.31 | 0.367 |
+| C2 | 71.03 | 41.61 | 0.425 |
+| C3 | 99.69 | 39.04 | 0.405 |
+| C4 | 120.37 | 35.35 | 0.419 |
+| C5 | 136.47 | 32.68 | 0.463 |
+| C6 | 155.77 | 31.16 | 0.498 |
+
+### Per-stream tok/s by category
+
+| category | C1 | C2 | C3 | C4 | C5 | C6 |
+|---|---|---|---|---|---|---|
+| coding | 70.46 | 54.53 | 48.74 | 45.18 | 41.37 | 40.22 |
+| json | 57.45 | 45.53 | 43.1 | 37.12 | 34.94 | 34.06 |
+| narrative | 21.91 | 16.67 | 14.79 | 12.3 | 12.44 | 10.8 |
+| prose | 25.86 | 19.52 | 16.51 | 15.42 | 14.78 | 14.38 |
+| math | 68.92 | 55.54 | 51.69 | 47.79 | 45.67 | 39.28 |
+| reasoning | 40.27 | 30.74 | 25.85 | 24.06 | 23.06 | 22.29 |
+| summary | 25.57 | 20.6 | 20.48 | 18.58 | 15.64 | 14.85 |
+| structured | 84.63 | 61.17 | 60.77 | 52.81 | 49.07 | 51.42 |
+| format | 84.68 | 70.15 | 69.45 | 64.88 | 57.19 | 53.14 |
+| ceiling_count | 87.95 | 76.45 | 68.05 | 63.19 | 57.65 | 53.84 |
+wrote ./bench-laneB-fp8kv-gmu90-dflash-vscale.json and .md
