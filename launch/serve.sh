@@ -9,7 +9,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ENV_FILE=${ENV_FILE:-$HERE/mimo.env}
 [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE (copy mimo.env.example and edit it)"; exit 2; }
 # command-line environment wins over the file
-_saved=$(env | grep -E '^(TP|LINEAR_BACKEND|REP_PENALTY|THINKING|HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
+_saved=$(env | grep -E '^(SPEC_K|TP|LINEAR_BACKEND|REP_PENALTY|THINKING|HEAD_IP|MASTER_PORT|MODEL_DIR|CACHE|IFACE|HCA|ADDR_RANGE|PORT|KV_DTYPE|GMU|MAXLEN|SEQS|SPEC|MOE|IMAGE|NAME|EXTRA_ARGS)=' || true)
 set -a; . "$ENV_FILE"; set +a
 [ -n "$_saved" ] && eval "$(echo "$_saved" | sed 's/^\([A-Z_]*\)=\(.*\)$/\1="\2"/')"
 
@@ -44,7 +44,7 @@ ARGS=(/models/mimo --served-model-name mimo-v2.6-flash --trust-remote-code
   --generation-config auto --override-generation-config "{\"repetition_penalty\": ${REP_PENALTY:-1.05}}")
 # async scheduling + spec decode corrupts tokens under concurrency (vllm#46669); off unless ASYNC_SCHED=1
 [ "${ASYNC_SCHED:-0}" = 1 ] || ARGS+=(--no-async-scheduling)
-[ "$SPEC" = dflash ] && ARGS+=(--speculative-config '{"method":"dflash","model":"/models/mimo/dflash","num_speculative_tokens":7}')
+[ "$SPEC" = dflash ] && ARGS+=(--speculative-config "{\"method\":\"dflash\",\"model\":\"/models/mimo/dflash\",\"num_speculative_tokens\":${SPEC_K:-7}}")
 [ "$R" != 0 ] && ARGS+=(--headless)
 
 mkdir -p "$CACHE"

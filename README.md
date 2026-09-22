@@ -145,7 +145,12 @@ Same weights, image and patches, `--tensor-parallel-size 4 --nnodes 4` (Reddie h
 | Cold prefill 2K / 8K / 32K / 64K | 1,950 / 1,700 / 1,425 / 1,210 | **2,952 / 2,911 / 2,603 / 2,172** | about 2,000 flat to 61K |
 | KV pool | 1.87M @ 300K | **15.0M @ 500K** | 3.53M @ 500K |
 
-C1 is the quiet-lane rerun (a first pass, with a few seconds of smoke-test traffic beside it, read 61.3 aggregate and 92.3 on code; single-stream cells move about 10% between passes on this lane). Reading: TP4 MiMo beats the GLM lane on throughput from C6 up (+16% at C6, +13% at C32), on math (+15%), structure (+8%), prefill (+30% to +45%) and KV pool (4.3x), ties on counting and TTFT, trails by 4 to 13% on code and JSON at one stream, and trails clearly on prose, narrative and summary, where DFlash accepts about 1 token per step (GLM's DFlash2 drafter is better matched to its target). No config switches beyond the baseline were run yet; candidates are draft length 5 vs 7 for prose, `--max-num-batched-tokens 8192`, and GMU 0.88.
+C1 is the quiet-lane rerun (a first pass, with a few seconds of smoke-test traffic beside it, read 61.3 aggregate and 92.3 on code; single-stream cells move about 10% between passes on this lane). Reading: TP4 MiMo beats the GLM lane on throughput from C6 up (+16% at C6, +13% at C32), on math (+15%), structure (+8%), prefill (+30% to +45%) and KV pool (4.3x), ties on counting and TTFT, trails by 4 to 13% on code and JSON at one stream, and trails clearly on prose, narrative and summary, where DFlash accepts about 1 token per step (GLM's DFlash2 drafter is better matched to its target). Config switches from this baseline (C1 to C6 and prefill, one at a time; data in [results/tp4-switches](results/tp4-switches/)):
+
+| switch | C1 agg | C6 agg | code / math / structured / counting | prose / narrative | prefill 2K / 32K | verdict |
+|---|---|---|---|---|---|---|
+| baseline: DFlash 7, MNBT default | 59.8 | 191.6 | 83 / 95 / 115 / 136 | 35 / 30 | 2,952 / 2,603 | reference |
+| DFlash draft length 4 | 52.3 | 176.7 | 86 / 82 / 78 / 84 | 28 / 30 | 2,058 / 2,601 | worse everywhere the drafter was good, no gain on prose; rejected |
 
 Fleet scripts: `examples/tech2wild-fleet/mimo_node.sh T <rank>` and `mimo_tp4_up.sh`. Generic: `TP=4 LINEAR_BACKEND=triton GMU=0.85 bash launch/serve.sh <rank>` on each Spark, workers first.
 
